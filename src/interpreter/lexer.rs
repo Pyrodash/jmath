@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
 use std::fmt;
+use std::iter::{Iterator};
 
 #[derive(PartialEq)]
-enum TokenKind {
+pub enum TokenKind {
     Add,
     Sub,
     Mul,
@@ -11,16 +13,33 @@ enum TokenKind {
     LeftParen,
     RightParen,
     Identifier,
-    Int,
-    Double,
+    Number,
+    Decimal,
     Illegal,
-    Unknown,
-    End
+    Unknown
 }
 
 pub struct Token<'a> {
     kind: TokenKind,
     value: &'a str,
+}
+
+impl<'a> Token<'a> {
+    pub fn kind(&self) -> &TokenKind {
+        return &self.kind
+    }
+
+    pub fn value(&self) -> &'a str {
+        return &self.value
+    }
+
+    pub fn precedence(&self) -> usize {
+        match self.kind {
+            TokenKind::Add | TokenKind::Sub => 10,
+            TokenKind::Mul | TokenKind::Div => 20,
+            _ => 0,
+        }
+    }
 }
 
 pub struct Lexer<'a> {
@@ -42,7 +61,7 @@ impl<'a> Lexer<'a> {
         self.source.get(pos..pos + 1).unwrap_or("\0")
     }
 
-    fn next(&mut self) -> &'a str {
+    fn get(&mut self) -> &'a str {
         let pos = self.position;
 
         self.position += 1;
@@ -55,68 +74,68 @@ impl<'a> Lexer<'a> {
         matches!(c, " " | "\t" | "\r" | "\n")
     }
 
-    fn atom(&mut self, kind: TokenKind) -> Token {
+    fn atom(&mut self, kind: TokenKind) -> Token<'a> {
         Token {
             kind,
-            value: self.next(),
+            value: self.get(),
         }
     }
 
-    pub fn read(&mut self) -> Token {
+    fn read(&mut self) -> Option<Token<'a>> {
         while self.is_space() {
-            self.next();
+            self.get();
         }
 
         match self.peek() {
-            "\0" => self.atom(TokenKind::End),
-            "+" => self.atom(TokenKind::Add),
-            "-" => self.atom(TokenKind::Sub),
-            "*" => self.atom(TokenKind::Mul),
-            "/" => self.atom(TokenKind::Div),
-            "^" => self.atom(TokenKind::Exp),
-            "=" => self.atom(TokenKind::Assign),
-            "(" => self.atom(TokenKind::LeftParen),
-            ")" => self.atom(TokenKind::RightParen),
+            "\0" => None,
+            "+" => Some(self.atom(TokenKind::Add)),
+            "-" => Some(self.atom(TokenKind::Sub)),
+            "*" => Some(self.atom(TokenKind::Mul)),
+            "/" => Some(self.atom(TokenKind::Div)),
+            "^" => Some(self.atom(TokenKind::Exp)),
+            "=" => Some(self.atom(TokenKind::Assign)),
+            "(" => Some(self.atom(TokenKind::LeftParen)),
+            ")" => Some(self.atom(TokenKind::RightParen)),
             s => {
                 let b = s.as_bytes()[0];
 
-                return if b.is_ascii_digit() {
-                    self.read_number()
+                if b.is_ascii_digit() {
+                    Some(self.read_number())
                 } else if b.is_ascii_alphabetic() {
-                    self.read_identifier()
+                    Some(self.read_identifier())
                 } else {
-                    self.atom(TokenKind::Unknown)
+                    Some(self.atom(TokenKind::Unknown))
                 }
             }
         }
     }
 
-    fn read_number(&mut self) -> Token {
+    fn read_number(&mut self) -> Token<'a> {
         let start = self.position;
-        let mut kind = TokenKind::Int;
+        let mut kind = TokenKind::Number;
 
         let mut char: &str;
         let mut byte: u8;
 
-        self.next();
+        self.get();
 
         loop {
             char = self.peek();
             byte = char.as_bytes()[0];
 
             if char == "." {
-                if kind == TokenKind::Double {
+                if kind == TokenKind::Decimal {
                     kind = TokenKind::Illegal;
 
                     break;
                 } else {
-                    kind = TokenKind::Double;
+                    kind = TokenKind::Decimal;
                 }
             } else if !byte.is_ascii_digit() {
                 break;
             }
 
-            self.next();
+            self.get();
         }
 
         let end = self.position;
@@ -132,13 +151,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn read_identifier(&mut self) -> Token {
+    fn read_identifier(&mut self) -> Token<'a> {
         let start = self.position;
 
         let mut char: &str;
         let mut byte: u8;
 
-        self.next();
+        self.get();
 
         loop {
             char = self.peek();
@@ -148,7 +167,7 @@ impl<'a> Lexer<'a> {
                 break;
             }
 
-            self.next();
+            self.get();
         }
 
         let end = self.position;
@@ -157,6 +176,14 @@ impl<'a> Lexer<'a> {
             kind: TokenKind::Identifier,
             value: &self.source[start..end],
         }
+    }
+}
+
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Token<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.read()
     }
 }
 
@@ -172,11 +199,10 @@ impl fmt::Display for TokenKind {
             TokenKind::LeftParen => write!(f, "LeftParen"),
             TokenKind::RightParen => write!(f, "RightParen"),
             TokenKind::Identifier => write!(f, "Identifier"),
-            TokenKind::Int => write!(f, "Int"),
-            TokenKind::Double => write!(f, "Double"),
+            TokenKind::Number => write!(f, "Number"),
+            TokenKind::Decimal => write!(f, "Decimal"),
             TokenKind::Illegal => write!(f, "Illegal"),
             TokenKind::Unknown => write!(f, "Unknown"),
-            TokenKind::End => write!(f, "End")
         }
     }
 }
