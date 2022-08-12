@@ -139,7 +139,7 @@ impl<'a> Lexer<'a> {
         }
 
         let end = self.position;
-        let last_char = &self.source[end..end + 1];
+        let last_char = &self.source[end - 1..end];
 
         if last_char == "." {
             kind = TokenKind::Illegal;
