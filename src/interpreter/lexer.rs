@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::fmt;
 use std::iter::{Iterator};
 
@@ -12,6 +11,9 @@ pub enum TokenKind {
     Assign,
     LeftParen,
     RightParen,
+    ArrayStart,
+    ArrayEnd,
+    Separator,
     Identifier,
     Number,
     Decimal,
@@ -96,6 +98,9 @@ impl<'a> Lexer<'a> {
             "=" => Some(self.atom(TokenKind::Assign)),
             "(" => Some(self.atom(TokenKind::LeftParen)),
             ")" => Some(self.atom(TokenKind::RightParen)),
+            "[" => Some(self.atom(TokenKind::ArrayStart)),
+            "]" => Some(self.atom(TokenKind::ArrayEnd)),
+            "," => Some(self.atom(TokenKind::Separator)),
             s => {
                 let b = s.as_bytes()[0];
 
@@ -198,6 +203,9 @@ impl fmt::Display for TokenKind {
             TokenKind::Assign => write!(f, "Assign"),
             TokenKind::LeftParen => write!(f, "LeftParen"),
             TokenKind::RightParen => write!(f, "RightParen"),
+            TokenKind::ArrayStart => write!(f, "ArrayStart"),
+            TokenKind::ArrayEnd => write!(f, "ArrayEnd"),
+            TokenKind::Separator => write!(f, "Separator"),
             TokenKind::Identifier => write!(f, "Identifier"),
             TokenKind::Number => write!(f, "Number"),
             TokenKind::Decimal => write!(f, "Decimal"),

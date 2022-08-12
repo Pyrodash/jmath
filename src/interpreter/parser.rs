@@ -77,6 +77,42 @@ impl<'a> Parser<'a> {
         expr
     }
 
+    fn parse_array_expr(&mut self) -> Node<'a> {
+        self.get();
+
+        let mut token;
+        let mut node;
+        let mut nodes = Vec::new();
+
+        loop {
+            node = self.parse_primary_expr();
+
+            if node.is_none() {
+                break;
+            } else {
+                nodes.push(Box::new(node.unwrap()));
+            }
+
+            token = self.token();
+
+            if !token.is_none() {
+                if token.unwrap().kind() != &TokenKind::Separator {
+                    break;
+                } else {
+                    self.get();
+                }
+            }
+        }
+
+        token = self.token();
+
+        if token.is_none() || token.unwrap().kind() != &TokenKind::ArrayEnd {
+            panic!("Expected array close");
+        }
+
+        Node::Array(nodes)
+    }
+
     fn parse_unary_op(&mut self) -> Node<'a> {
         let op: Operator = self.token().unwrap().value().into();
 
@@ -103,19 +139,20 @@ impl<'a> Parser<'a> {
             &TokenKind::Decimal => Option::from(self.parse_decimal()),
             &TokenKind::Identifier => Option::from(self.parse_identifier()),
             &TokenKind::LeftParen => Option::from(self.parse_paren_expr()),
+            &TokenKind::ArrayStart => Option::from(self.parse_array_expr()),
             _ => None
         }
     }
 
     fn parse_expr_right(&mut self, precedence: usize, mut left: Node<'a>) -> Node<'a> {
         loop {
-            let mut tokenPrecedence: usize = if self.token.is_none() {
+            let token_prec: usize = if self.token.is_none() {
                 0
             } else {
                 self.token().unwrap().precedence()
             };
 
-            if tokenPrecedence < precedence {
+            if token_prec < precedence {
                 return left;
             }
 
@@ -127,10 +164,10 @@ impl<'a> Parser<'a> {
             let mut right = self.parse_primary_expr().expect("Expected right-hand-side expression");
 
             if !self.token.is_none() {
-                let nextPrecedence = self.token().unwrap().precedence();
+                let next_prec = self.token().unwrap().precedence();
 
-                if tokenPrecedence < nextPrecedence {
-                    right = self.parse_expr_right(tokenPrecedence + 1, right);
+                if token_prec < next_prec {
+                    right = self.parse_expr_right(token_prec + 1, right);
                 }
             }
 

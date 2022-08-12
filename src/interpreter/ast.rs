@@ -1,6 +1,6 @@
 use std::fmt;
-use std::fmt::Display;
 
+#[derive(Debug)]
 pub enum Operator {
     Add,
     Sub,
@@ -31,9 +31,11 @@ impl<'a> From<&'a str> for Operator {
     }
 }
 
+#[derive(Debug)]
 pub enum Node<'a> {
     Number(isize),
     Decimal(f64),
+    Array(Vec<Box<Node<'a>>>),
     Variable(&'a str),
     Assign {
         lhs: Box<Node<'a>>,
@@ -55,6 +57,7 @@ impl<'a> fmt::Display for Node<'a> {
         match self {
             Node::Number(value) => write!(f, "NumberNode({})", value),
             Node::Decimal(value) => write!(f, "DecimalNode({})", value),
+            Node::Array(value) => write!(f, "ArrayNode({:?})", value),
             Node::Variable(value) => write!(f, "VariableNode({})", value),
             Node::Assign { lhs, rhs } => write!(f, "AssignNode({}, {})", lhs, rhs),
             Node::UnaryOp { op, rhs} => write!(f, "UnaryOpNode({}, {})", op, rhs),
