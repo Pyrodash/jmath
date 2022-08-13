@@ -18,7 +18,7 @@ impl<'a> Parser<'a> {
 
     fn parse_number(&mut self) -> Node<'a> {
         let value = self.token().unwrap().value();
-        let res = Node::Number(value.parse::<isize>().unwrap());
+        let res = Node::Number(value.parse::<i64>().unwrap());
 
         self.get();
 
@@ -90,7 +90,7 @@ impl<'a> Parser<'a> {
             if node.is_none() {
                 break;
             } else {
-                nodes.push(Box::new(node.unwrap()));
+                nodes.push(node.unwrap());
             }
 
             token = self.token();
@@ -109,6 +109,8 @@ impl<'a> Parser<'a> {
         if token.is_none() || token.unwrap().kind() != &TokenKind::ArrayEnd {
             panic!("Expected array close");
         }
+
+        self.get();
 
         Node::Array(nodes)
     }

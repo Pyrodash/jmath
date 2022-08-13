@@ -33,9 +33,9 @@ impl<'a> From<&'a str> for Operator {
 
 #[derive(Debug)]
 pub enum Node<'a> {
-    Number(isize),
+    Number(i64),
     Decimal(f64),
-    Array(Vec<Box<Node<'a>>>),
+    Array(Vec<Node<'a>>),
     Variable(&'a str),
     Assign {
         lhs: Box<Node<'a>>,
