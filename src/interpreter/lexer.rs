@@ -14,6 +14,7 @@ pub enum TokenKind {
     ArrayStart,
     ArrayEnd,
     Separator,
+    Semicolon,
     Identifier,
     Number,
     Decimal,
@@ -101,6 +102,7 @@ impl<'a> Lexer<'a> {
             "[" => Some(self.atom(TokenKind::ArrayStart)),
             "]" => Some(self.atom(TokenKind::ArrayEnd)),
             "," => Some(self.atom(TokenKind::Separator)),
+            ";" => Some(self.atom(TokenKind::Semicolon)),
             s => {
                 let b = s.as_bytes()[0];
 
@@ -206,6 +208,7 @@ impl fmt::Display for TokenKind {
             TokenKind::ArrayStart => write!(f, "ArrayStart"),
             TokenKind::ArrayEnd => write!(f, "ArrayEnd"),
             TokenKind::Separator => write!(f, "Separator"),
+            TokenKind::Semicolon => write!(f, "Semicolon"),
             TokenKind::Identifier => write!(f, "Identifier"),
             TokenKind::Number => write!(f, "Number"),
             TokenKind::Decimal => write!(f, "Decimal"),

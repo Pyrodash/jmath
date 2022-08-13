@@ -190,6 +190,26 @@ impl<'a> Parser<'a> {
 
         Option::from(self.parse_expr_right(1, left.unwrap()))
     }
+
+    fn parse(&mut self) -> Vec<Node<'a>> {
+        let mut vec = Vec::new();
+
+        self.get();
+
+        loop {
+            let expr = self.parse_expr();
+
+            if !expr.is_none() {
+                vec.push(expr.unwrap());
+            }
+
+            if self.token.is_none() || self.token().unwrap().kind() != TokenKind::Semicolon {
+                break;
+            }
+        }
+
+        vec
+    }
 }
 
 impl<'a> Parser<'a> {
