@@ -1,9 +1,14 @@
+mod error;
+mod lexer;
+mod ast;
+mod parser;
+mod memory;
 mod interpreter;
 
-use crate::interpreter::lexer::Lexer;
-use crate::interpreter::parser::Parser;
-use crate::interpreter::interpreter::{Interpreter, NodeVisitor};
-use crate::interpreter::memory::{Memory, Value};
+use crate::lexer::Lexer;
+use crate::parser::Parser;
+use crate::interpreter::{Interpreter, NodeVisitor};
+use crate::memory::{Memory, Value};
 
 fn main() {
     let mut lexer = Lexer::new("a=b+2; a");

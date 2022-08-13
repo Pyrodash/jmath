@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Deref;
-use crate::{Node, Operator};
-use crate::interpreter::memory::{Memory, Value};
+use crate::ast::{Node, Operator};
+use crate::memory::{Memory, Value};
 
 pub trait NodeVisitor<'a> {
     fn visit(&mut self, node: &'a Node) -> Value;

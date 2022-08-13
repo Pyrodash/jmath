@@ -1,6 +1,6 @@
 use std::iter::{Iterator};
-use crate::interpreter::lexer::{Token, TokenKind};
-use crate::{Lexer, Node, Operator};
+use crate::lexer::{Lexer, Token, TokenKind};
+use crate::ast::{Node, Operator};
 
 pub struct Parser<'a> {
     token: Option<Token<'a>>,
