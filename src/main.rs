@@ -6,7 +6,7 @@ use crate::interpreter::interpreter::{Interpreter, NodeVisitor};
 use crate::interpreter::ast::*;
 
 fn main() {
-    let mut lexer = Lexer::new("[1, 2]*2*2");
+    let mut lexer = Lexer::new("[[1, 2]]*[[1, 1], [2, 2]]");
     let mut parser = Parser::new(&mut lexer);
     let interpreter = Interpreter{};
 

@@ -1,11 +1,10 @@
-use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::Formatter;
 use std::ops;
-use std::ops::{Add, Deref};
+use std::ops::{Deref};
 use crate::{Node, Operator};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Number(i64),
     Decimal(f64),
@@ -13,7 +12,15 @@ pub enum Value {
 }
 
 impl Value {
-    fn as_array(self) -> Vec<Value> {
+    fn as_array(&self) -> &Vec<Value> {
+        if let Value::Array(v) = self {
+            v
+        } else {
+            panic!("Invalid array")
+        }
+    }
+
+    fn as_array_mut(&mut self) -> &mut Vec<Value> {
         if let Value::Array(v) = self {
             v
         } else {
@@ -219,20 +226,63 @@ impl ops::Mul<f64> for Value {
 impl ops::Mul<Vec<Value>> for Value {
     type Output = Value;
 
-    fn mul(self, rhs: Vec<Value>) -> Self::Output {
+    fn mul(self, lhs: Vec<Value>) -> Self::Output {
         match self {
-            Value::Number(lhs) => {
-                let arr = rhs.into_iter().map(|value| value * lhs).collect();
+            Value::Number(rhs) => {
+                let arr = lhs.into_iter().map(|value| value * rhs).collect();
+
+                Value::Array(arr)
+            }
+            Value::Decimal(rhs) => {
+                let arr = lhs.into_iter().map(|value| value * rhs).collect();
 
                 Value::Array(arr)
             },
-            Value::Decimal(lhs) => {
-                let arr = rhs.into_iter().map(|value| value * lhs).collect();
+            Value::Array(rhs) => {
+                let r1 = lhs.len();
+                let r2 = rhs.len();
 
-                Value::Array(arr)
-            },
-            Value::Array(lhs) => {
-                todo!("Matrix multiplication")
+                if r1 == 0 || r2 == 0 {
+                    panic!("Cannot multiply an empty matrix")
+                } else {
+                    let c1 = lhs.iter().next().unwrap().as_array().len();
+                    let c2 = rhs.iter().next().unwrap().as_array().len();
+
+                    if c1 != r2 {
+                        panic!("Cannot multiply matrices");
+                    }
+
+                    // lhs_iter = lhs.into_iter();
+                    // rhs_iter = rhs.into_iter();
+
+                    let mut res: Vec<Value> = Vec::with_capacity(r1);
+
+                    for _ in 0..r1 {
+                        let mut vec = Vec::with_capacity(c2);
+
+                        for _ in 0..c2 {
+                            vec.push(Value::Number(0));
+                        }
+
+                        res.push(Value::Array(vec));
+                    }
+
+                    for i in 0..r1 {
+                        let res_vec = res[i].as_array_mut();
+
+                        for j in 0..c2 {
+                            for k in 0..c1 {
+                                let lhs_vec = lhs[i].as_array();
+                                let rhs_vec = rhs[k].as_array();
+
+
+                                res_vec[j] = res_vec[j].clone() + lhs_vec[k].clone() * rhs_vec[j].clone();
+                            }
+                        }
+                    }
+
+                    return Value::Array(res);
+                }
             },
         }
     }
@@ -316,6 +366,7 @@ impl NodeVisitor for Interpreter {
             },
             Node::Variable(name) => {
                 todo!("memory")
+
             },
             Node::Assign { lhs, rhs } => {
                 todo!("memory")
