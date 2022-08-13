@@ -203,9 +203,11 @@ impl<'a> Parser<'a> {
                 vec.push(expr.unwrap());
             }
 
-            if self.token.is_none() || self.token().unwrap().kind() != TokenKind::Semicolon {
+            if self.token.is_none() || self.token().unwrap().kind() != &TokenKind::Semicolon {
                 break;
             }
+
+            self.get();
         }
 
         vec
@@ -220,8 +222,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn run(&mut self) -> Option<Node<'a>> {
-        self.get();
-        self.parse_expr()
+    pub fn run(&mut self) -> Vec<Node<'a>> {
+        self.parse()
     }
 }
