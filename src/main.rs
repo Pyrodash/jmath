@@ -8,23 +8,26 @@ mod interpreter;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::interpreter::{Interpreter, NodeVisitor};
-use crate::memory::{Memory, Value};
+use crate::memory::{ActivationRecord, Value};
 
 fn main() {
-    let mut lexer = Lexer::new("a=b+2; a");
+    let mut lexer = Lexer::new("a=(b/2); a");
     let mut parser = Parser::new(&mut lexer);
 
-    let mut memory = Memory::new();
+    let mut ar = ActivationRecord::new();
 
-    memory.insert("b", Value::Number(2));
+    ar.insert("b", Value::Number(2));
 
-    let mut interpreter = Interpreter::new(&mut memory);
+    let mut interpreter = Interpreter::from_record(ar);
 
-    let nodes = parser.run();
+    let nodes = parser.run().unwrap();
 
     println!("{:?}", nodes);
 
     for node in nodes.iter() {
-        println!("{}", interpreter.visit(node))
+        match interpreter.visit(node) {
+            Ok(val) => println!("{}", val),
+            Err(err) => panic!("{}", err)
+        }
     }
 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ops;
 use std::fmt;
+use crate::interpreter::Interpreter;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -14,7 +15,7 @@ impl Value {
         if let Value::Array(v) = self {
             v
         } else {
-            panic!("Invalid array")
+            panic!(Interpreter::error("Invalid array"))
         }
     }
 
@@ -22,7 +23,7 @@ impl Value {
         if let Value::Array(v) = self {
             v
         } else {
-            panic!("Invalid array")
+            panic!(Interpreter::error("Invalid array"))
         }
     }
 }
@@ -182,9 +183,9 @@ impl ops::Sub<Value> for Value {
 
     fn sub(self, rhs: Self) -> Self::Output {
         match self {
-            Value::Number(lhs) => rhs - lhs,
-            Value::Decimal(lhs) => rhs - lhs,
-            Value::Array(lhs) => rhs - lhs,
+            Value::Number(lhs) => -rhs + lhs,
+            Value::Decimal(lhs) => -rhs + lhs,
+            Value::Array(lhs) => -rhs + lhs,
         }
     }
 }
@@ -241,13 +242,13 @@ impl ops::Mul<Vec<Value>> for Value {
                 let r2 = rhs.len();
 
                 if r1 == 0 || r2 == 0 {
-                    panic!("Cannot multiply an empty matrix")
+                    panic!(Interpreter::error("Cannot multiply an empty matrix"))
                 } else {
                     let c1 = lhs.iter().next().unwrap().as_array().len();
                     let c2 = rhs.iter().next().unwrap().as_array().len();
 
                     if c1 != r2 {
-                        panic!("Cannot multiply matrices");
+                        panic!(Interpreter::error("Cannot multiply matrices"));
                     }
 
                     // lhs_iter = lhs.into_iter();
@@ -342,13 +343,14 @@ impl ops::Div<Value> for Value {
     }
 }
 
-pub struct Memory<'a> {
+#[derive(Debug)]
+pub struct ActivationRecord<'a> {
     members: HashMap<&'a str, Value>
 }
 
-impl<'a> Memory<'a> {
-    pub fn new() -> Memory<'a> {
-        Memory {
+impl<'a> ActivationRecord<'a> {
+    pub fn new() -> ActivationRecord<'a> {
+        ActivationRecord {
             members: HashMap::new()
         }
     }
@@ -359,5 +361,46 @@ impl<'a> Memory<'a> {
 
     pub fn insert(&mut self, key: &'a str, value: Value) -> Option<Value> {
         self.members.insert(key, value)
+    }
+}
+
+#[derive(Debug)]
+pub struct CallStack<'a> {
+    records: Vec<ActivationRecord<'a>>
+}
+
+impl<'a> CallStack<'a> {
+    pub fn new() -> CallStack<'a> {
+        CallStack {
+            records: Vec::new(),
+        }
+    }
+
+    pub fn from_record(record: ActivationRecord<'a>) -> CallStack<'a> {
+        let mut stack = CallStack::new();
+
+        stack.push(record);
+
+        stack
+    }
+
+    pub fn push(&mut self, record: ActivationRecord<'a>) {
+        self.records.push(record);
+    }
+
+    pub fn peek(&self) -> Option<&ActivationRecord<'a>> {
+        self.records.last()
+    }
+
+    pub fn peek_mut(&mut self) -> Option<&mut ActivationRecord<'a>> {
+        self.records.last_mut()
+    }
+
+    pub fn pop(&mut self) -> Option<ActivationRecord<'a>> {
+        self.records.pop()
+    }
+
+    pub fn len(&self) -> usize {
+        self.records.len()
     }
 }
