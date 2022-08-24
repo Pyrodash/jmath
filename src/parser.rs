@@ -1,91 +1,98 @@
-use std::iter::{Iterator};
+use std::iter::{Iterator, Peekable};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::ast::{Node, Operator};
+use crate::error::Error;
 
 pub struct Parser<'a> {
-    token: Option<Token<'a>>,
-    source: &'a mut Lexer<'a>,
+    source: Peekable<&'a mut Lexer<'a>>,
 }
 
 impl<'a> Parser<'a> {
-    fn get(&mut self)  {
-        self.token = self.source.next();
+    fn error(msg: &'a str) -> Error {
+        Error::ParserError(String::from(msg))
     }
 
-    fn token(&self) -> Option<&Token<'a>> {
-        self.token.as_ref()
+    fn eat(&mut self) -> Option<Token<'a>> {
+        self.source.next()
+    }
+
+    fn peek(&mut self) -> Option<&Token<'a>> {
+        self.source.peek()
     }
 
     fn parse_number(&mut self) -> Node<'a> {
-        let value = self.token().unwrap().value();
+        let value = self.eat().unwrap().value();
         let res = Node::Number(value.parse::<i64>().unwrap());
-
-        self.get();
 
         res
     }
 
     fn parse_decimal(&mut self) -> Node<'a> {
-        let value = self.token().unwrap().value();
+        let value = self.eat().unwrap().value();
         let res = Node::Decimal(value.parse::<f64>().unwrap());
-
-        self.get();
 
         res
     }
 
-    fn parse_identifier(&mut self) -> Node<'a> {
-        let name = self.token().unwrap().value();
+    fn parse_identifier(&mut self) -> Result<Node<'a>, Error> {
+        let name = self.eat().unwrap().value();
         let var = Node::Variable(name);
 
-        self.get();
+        let token = self.peek();
 
-        if self.token.is_none() {
-            var
+        if token.is_none() {
+            Ok(var)
         } else {
-            let token = self.token().unwrap();
-
-            match token.kind() {
+            match token.unwrap().kind() {
                 &TokenKind::Assign => {
-                    self.get();
+                    self.eat();
 
-                    let rhs = self.parse_expr().expect("Expected right-hand-side of assignment operation");
-                    let res = Node::Assign {
-                        lhs: Box::new(var),
-                        rhs: Box::new(rhs)
-                    };
+                    let right = self.parse_expr()?;
 
-                    return res
+                    match right {
+                        Some(rhs) => {
+                            let res = Node::Assign {
+                                lhs: Box::new(var),
+                                rhs: Box::new(rhs)
+                            };
+
+                            Ok(res)
+                        },
+                        None => Err(Parser::error("Expected right-hand-side of assignment operation")),
+                    }
                 },
-                _ => return var,
+                _ => Ok(var),
             }
         }
     }
 
-    fn parse_paren_expr(&mut self) -> Node<'a> {
-        self.get();
+    fn parse_paren_expr(&mut self) -> Result<Node<'a>, Error> {
+        self.eat();
 
-        let expr = self.parse_expr().expect("Expected expression inside parenthesis");
-        let token = self.token().expect("Expected to find parenthesis end");
+        let val = self.parse_expr()?;
 
-        if token.kind() != &TokenKind::RightParen {
-            panic!("Expected to find parenthesis end");
+        match val {
+            Some(expr) => {
+                let token = self.eat();
+
+                if token.is_none() || token.unwrap().kind() != &TokenKind::RightParen {
+                    return Err(Parser::error("Expected to find parenthesis end"));
+                }
+
+                Ok(expr)
+            },
+            None => Err(Parser::error("Expected expression inside parenthesis"))
         }
-
-        self.get();
-
-        expr
     }
 
-    fn parse_array_expr(&mut self) -> Node<'a> {
-        self.get();
+    fn parse_array_expr(&mut self) -> Result<Node<'a>, Error> {
+        self.eat();
 
         let mut token;
-        let mut node;
         let mut nodes = Vec::new();
 
         loop {
-            node = self.parse_primary_expr();
+            let node = self.parse_expr()?;
 
             if node.is_none() {
                 break;
@@ -93,136 +100,145 @@ impl<'a> Parser<'a> {
                 nodes.push(node.unwrap());
             }
 
-            token = self.token();
+            token = self.peek();
 
             if !token.is_none() {
                 if token.unwrap().kind() != &TokenKind::Separator {
+                    // expected separator
                     break;
                 } else {
-                    self.get();
+                    self.eat();
                 }
             }
         }
 
-        token = self.token();
+        token = self.peek();
 
         if token.is_none() || token.unwrap().kind() != &TokenKind::ArrayEnd {
-            panic!("Expected array close");
+            return Err(Parser::error("Expected array close"));
         }
 
-        self.get();
+        self.eat();
 
-        Node::Array(nodes)
+        Ok(Node::Array(nodes))
     }
 
-    fn parse_unary_op(&mut self) -> Node<'a> {
-        let op: Operator = self.token().unwrap().value().into();
+    fn parse_unary_op(&mut self) -> Result<Node<'a>, Error> {
+        let op: Operator = self.eat().unwrap().value().into();
 
-        self.get();
+        let value = self.parse_primary_expr()?;
 
-        let expr = self.parse_primary_expr().expect("Expected a right-hand-side node");
-
-        Node::UnaryOp {
-            op,
-            rhs: Box::new(expr)
-        }
-    }
-
-    fn parse_primary_expr(&mut self) -> Option<Node<'a>> {
-        if self.token.is_none() {
-            return None;
-        }
-
-        let token = self.token().unwrap();
-
-        match token.kind() {
-            &TokenKind::Add | &TokenKind::Sub => Option::from(self.parse_unary_op()),
-            &TokenKind::Number => Option::from(self.parse_number()),
-            &TokenKind::Decimal => Option::from(self.parse_decimal()),
-            &TokenKind::Identifier => Option::from(self.parse_identifier()),
-            &TokenKind::LeftParen => Option::from(self.parse_paren_expr()),
-            &TokenKind::ArrayStart => Option::from(self.parse_array_expr()),
-            _ => None
+        match value {
+            Some(expr) => Ok(Node::UnaryOp {
+                op,
+                rhs: Box::new(expr)
+            }),
+            None => Err(Parser::error("Expected a right-hand-side node"))
         }
     }
 
-    fn parse_expr_right(&mut self, precedence: usize, mut left: Node<'a>) -> Node<'a> {
+    fn parse_primary_expr(&mut self) -> Result<Option<Node<'a>>, Error> {
+        let token = self.peek();
+
+        if token.is_none() {
+            return Ok(None);
+        }
+
+        match token.unwrap().kind() {
+            &TokenKind::Add | &TokenKind::Sub => self.parse_unary_op().map(|node| Option::from(node)),
+            &TokenKind::Number => Ok(Option::from(self.parse_number())),
+            &TokenKind::Decimal => Ok(Option::from(self.parse_decimal())),
+            &TokenKind::Identifier => self.parse_identifier().map(|node| Option::from(node)),
+            &TokenKind::LeftParen => self.parse_paren_expr().map(|node| Option::from(node)),
+            &TokenKind::ArrayStart => self.parse_array_expr().map(|node| Option::from(node)),
+            _ => Ok(None),
+        }
+    }
+
+    fn parse_expr_right(&mut self, precedence: usize, mut left: Node<'a>) -> Result<Node<'a>, Error> {
         loop {
-            let token_prec: usize = if self.token.is_none() {
+            let mut token = self.peek();
+            let token_prec: usize = if token.is_none() {
                 0
             } else {
-                self.token().unwrap().precedence()
+                token.unwrap().precedence()
             };
 
             if token_prec < precedence {
-                return left;
+                return Ok(left);
             }
 
-            let op: Operator = self.token().unwrap().value().into();
+            let op: Operator = token.unwrap().value().into();
 
             // we know this token IS a binary operator
-            self.get();
+            self.eat();
 
-            let mut right = self.parse_primary_expr().expect("Expected right-hand-side expression");
+            let value = self.parse_primary_expr()?;
 
-            if !self.token.is_none() {
-                let next_prec = self.token().unwrap().precedence();
+            match value {
+                Some(mut right) => {
+                    token = self.peek();
 
-                if token_prec < next_prec {
-                    right = self.parse_expr_right(token_prec + 1, right);
-                }
+                    if !token.is_none() {
+                        let next_prec = token.unwrap().precedence();
+
+                        if token_prec < next_prec {
+                            right = self.parse_expr_right(token_prec + 1, right)?;
+                        }
+                    }
+
+                    left = Node::BinaryOp {
+                        op,
+                        lhs: Box::new(left),
+                        rhs: Box::new(right)
+                    };
+                },
+                None => return Err(Parser::error("Expected right-hand-side expression"))
             }
-
-            left = Node::BinaryOp {
-                op,
-                lhs: Box::new(left),
-                rhs: Box::new(right)
-            };
         }
     }
 
-    fn parse_expr(&mut self) -> Option<Node<'a>> {
-        let left = self.parse_primary_expr();
+    fn parse_expr(&mut self) -> Result<Option<Node<'a>>, Error> {
+        let left = self.parse_primary_expr()?;
 
         if left.is_none() {
-            return None;
+            return Ok(None);
         }
 
-        Option::from(self.parse_expr_right(1, left.unwrap()))
+        self.parse_expr_right(1, left.unwrap()).map(|node| Option::from(node))
     }
 
-    fn parse(&mut self) -> Vec<Node<'a>> {
+    fn parse(&mut self) -> Result<Vec<Node<'a>>, Error> {
         let mut vec = Vec::new();
 
-        self.get();
-
         loop {
-            let expr = self.parse_expr();
+            let expr = self.parse_expr()?;
 
             if !expr.is_none() {
                 vec.push(expr.unwrap());
             }
 
-            if self.token.is_none() || self.token().unwrap().kind() != &TokenKind::Semicolon {
+            let token = self.peek();
+
+            if token.is_none() || token.unwrap().kind() != &TokenKind::Semicolon {
                 break;
             }
 
-            self.get();
+            self.eat();
         }
 
-        vec
+        Ok(vec)
     }
 }
 
 impl<'a> Parser<'a> {
     pub fn new(source: &'a mut Lexer<'a>) -> Parser {
         Parser {
-            token: None,
-            source,
+            source: source.peekable(),
         }
     }
 
-    pub fn run(&mut self) -> Vec<Node<'a>> {
+    pub fn run(&mut self) -> Result<Vec<Node<'a>>, Error> {
         self.parse()
     }
 }
