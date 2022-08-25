@@ -5,29 +5,47 @@ mod parser;
 mod memory;
 mod interpreter;
 
+use std::io::{Write};
+use rustyline::error::ReadlineError;
+use rustyline::{Editor};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::interpreter::{Interpreter, NodeVisitor};
-use crate::memory::{ActivationRecord, Value};
+use crate::memory::{Value};
+
+fn repl() -> Result<(), Box<dyn std::error::Error>> {
+    let mut rl = Editor::<()>::new().expect("Failed to initialize CLI");
+    let mut interpreter = Interpreter::new();
+
+    loop {
+        let readline = rl.readline("> ");
+
+        match readline {
+            Ok(line) => {
+                let mut lexer = Lexer::new(line.as_str());
+                let mut parser = Parser::new(&mut lexer);
+
+                let nodes = parser.run()?;
+                let mut value: Value = Value::Number(0);
+
+                for node in nodes {
+                    value = interpreter.visit(&node)?
+                }
+
+                println!("{}", value)
+            },
+            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => break,
+            Err(err) => return Result::Err(Box::new(err))
+        }
+    }
+
+    Result::Ok(())
+}
 
 fn main() {
-    let mut lexer = Lexer::new("a=(b/2); a");
-    let mut parser = Parser::new(&mut lexer);
+    let res = repl();
 
-    let mut ar = ActivationRecord::new();
-
-    ar.insert("b", Value::Number(2));
-
-    let mut interpreter = Interpreter::from_record(ar);
-
-    let nodes = parser.run().unwrap();
-
-    println!("{:?}", nodes);
-
-    for node in nodes.iter() {
-        match interpreter.visit(node) {
-            Ok(val) => println!("{}", val),
-            Err(err) => panic!("{}", err)
-        }
+    if res.is_err() {
+        panic!("{}", res.err().unwrap())
     }
 }
