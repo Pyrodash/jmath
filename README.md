@@ -18,24 +18,30 @@ __Note:__ All math operations that you can perform on a matrix can be performed 
 use crate::interpreter::lexer::Lexer;
 use crate::interpreter::parser::Parser;
 use crate::interpreter::interpreter::{Interpreter, NodeVisitor};
-use crate::interpreter::memory::{Memory, Value};
+use crate::interpreter::memory::{ActivationRecord, Value};
 
 fn main() {
     let mut lexer = Lexer::new("a = b+2; a");
     let mut parser = Parser::new(&mut lexer);
 
-    let mut memory = Memory::new();
+    let mut ar = ActivationRecord::new();
 
-    memory.insert("b", Value::Number(2));
+    ar.insert(String::from("b"), Value::Number(2));
 
-    let mut interpreter = Interpreter::new(&mut memory);
+    let mut interpreter = Interpreter::from_record(ar);
 
-    let nodes = parser.run();
+    let nodes = parser.run().unwrap();
 
     println!("{:?}", nodes);
 
     for node in nodes.iter() {
-        println!("{}", interpreter.visit(node))
+        println!("{}", interpreter.visit(node).unwrap())
     }
 }
+```
+
+### REPL
+To use the REPL, clone the project and then run:
+```shell
+cargo run
 ```
