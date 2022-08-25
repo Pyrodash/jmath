@@ -40,6 +40,7 @@ impl<'a> Token<'a> {
         match self.kind {
             TokenKind::Add | TokenKind::Sub => 10,
             TokenKind::Mul | TokenKind::Div => 20,
+            TokenKind::Exp => 30,
             _ => 0,
         }
     }

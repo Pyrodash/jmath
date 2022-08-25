@@ -15,7 +15,7 @@ impl Value {
         if let Value::Array(v) = self {
             v
         } else {
-            panic!(Interpreter::error("Invalid array"))
+            panic!("{}", Interpreter::error("Invalid array"))
         }
     }
 
@@ -23,7 +23,7 @@ impl Value {
         if let Value::Array(v) = self {
             v
         } else {
-            panic!(Interpreter::error("Invalid array"))
+            panic!("{}", Interpreter::error("Invalid array"))
         }
     }
 }
@@ -181,11 +181,11 @@ impl ops::Sub<Vec<Value>> for Value {
 impl ops::Sub<Value> for Value {
     type Output = Value;
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        match self {
-            Value::Number(lhs) => -rhs + lhs,
-            Value::Decimal(lhs) => -rhs + lhs,
-            Value::Array(lhs) => -rhs + lhs,
+    fn sub(self, right: Self) -> Self::Output {
+        match right {
+            Value::Number(rhs) => self - rhs,
+            Value::Decimal(rhs) => self - rhs,
+            Value::Array(rhs) => self - rhs,
         }
     }
 }
@@ -242,13 +242,13 @@ impl ops::Mul<Vec<Value>> for Value {
                 let r2 = rhs.len();
 
                 if r1 == 0 || r2 == 0 {
-                    panic!(Interpreter::error("Cannot multiply an empty matrix"))
+                    panic!("{}", Interpreter::error("Cannot multiply an empty matrix"))
                 } else {
                     let c1 = lhs.iter().next().unwrap().as_array().len();
                     let c2 = rhs.iter().next().unwrap().as_array().len();
 
                     if c1 != r2 {
-                        panic!(Interpreter::error("Cannot multiply matrices"));
+                        panic!("{}", Interpreter::error("Cannot multiply matrices"));
                     }
 
                     // lhs_iter = lhs.into_iter();
@@ -304,9 +304,13 @@ impl ops::Div<i64> for Value {
 
     fn div(self, rhs: i64) -> Self::Output {
         match self {
-            Value::Number(lhs) => Value::Number(lhs / rhs),
+            Value::Number(lhs) => Value::Decimal((lhs as f64) / (rhs as f64)),
             Value::Decimal(lhs) => Value::Decimal(lhs / (rhs as f64)),
-            Value::Array(_) => panic!("Matrix division is impossible"),
+            Value::Array(lhs) => {
+                let arr = lhs.into_iter().map(|value| value / rhs).collect();
+
+                Value::Array(arr)
+            },
         }
     }
 }
@@ -318,65 +322,95 @@ impl ops::Div<f64> for Value {
         match self {
             Value::Number(lhs) => Value::Decimal((lhs as f64) / rhs),
             Value::Decimal(lhs) => Value::Decimal(lhs / rhs),
-            Value::Array(_) => panic!("Matrix division is impossible"),
+            Value::Array(lhs) => {
+                let arr = lhs.into_iter().map(|value| value / rhs).collect();
+
+                Value::Array(arr)
+            },
         }
-    }
-}
-
-impl ops::Div<Vec<Value>> for Value {
-    type Output = Value;
-
-    fn div(self, _: Vec<Value>) -> Self::Output {
-        panic!("Matrix division is impossible")
     }
 }
 
 impl ops::Div<Value> for Value {
     type Output = Value;
 
-    fn div(self, rhs: Self) -> Self::Output {
+    fn div(self, right: Self) -> Self::Output {
+        match right {
+            Value::Number(rhs) => self / rhs,
+            Value::Decimal(rhs) => self / rhs,
+            Value::Array(_) => panic!("Impossible operation"),
+        }
+    }
+}
+
+impl Value {
+    pub fn powi(self, rhs: i32) -> Value {
         match self {
-            Value::Number(lhs) => rhs / lhs,
-            Value::Decimal(lhs) => rhs / lhs,
-            Value::Array(lhs) => rhs / lhs,
+            Value::Number(lhs) => Value::Decimal((lhs as f64).powi(rhs)),
+            Value::Decimal(lhs) => Value::Decimal(lhs.powi(rhs)),
+            Value::Array(lhs) => {
+                let arr = lhs.into_iter().map(|value| value.powi(rhs)).collect();
+
+                Value::Array(arr)
+            }
+        }
+    }
+
+    pub fn powf(self, rhs: f64) -> Value {
+        match self {
+            Value::Number(lhs) => Value::Decimal((lhs as f64).powf(rhs)),
+            Value::Decimal(lhs) => Value::Decimal(lhs.powf(rhs)),
+            Value::Array(lhs) => {
+                let arr = lhs.into_iter().map(|value| value.powf(rhs)).collect();
+
+                Value::Array(arr)
+            }
+        }
+    }
+
+    pub fn pow(self, right: Self) -> Value {
+        match right {
+            Value::Number(rhs) => self.powf(rhs as f64),
+            Value::Decimal(rhs) => self.powf(rhs),
+            Value::Array(_) => panic!("Impossible operation"),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct ActivationRecord<'a> {
-    members: HashMap<&'a str, Value>
+pub struct ActivationRecord {
+    members: HashMap<String, Value>
 }
 
-impl<'a> ActivationRecord<'a> {
-    pub fn new() -> ActivationRecord<'a> {
+impl ActivationRecord {
+    pub fn new() -> ActivationRecord {
         ActivationRecord {
             members: HashMap::new()
         }
     }
 
-    pub fn get(&self, key: &'a str) -> Option<&Value> {
+    pub fn get(&self, key: &String) -> Option<&Value> {
         return self.members.get(key)
     }
 
-    pub fn insert(&mut self, key: &'a str, value: Value) -> Option<Value> {
+    pub fn insert(&mut self, key: String, value: Value) -> Option<Value> {
         self.members.insert(key, value)
     }
 }
 
 #[derive(Debug)]
-pub struct CallStack<'a> {
-    records: Vec<ActivationRecord<'a>>
+pub struct CallStack {
+    records: Vec<ActivationRecord>
 }
 
-impl<'a> CallStack<'a> {
-    pub fn new() -> CallStack<'a> {
+impl CallStack {
+    pub fn new() -> CallStack {
         CallStack {
             records: Vec::new(),
         }
     }
 
-    pub fn from_record(record: ActivationRecord<'a>) -> CallStack<'a> {
+    pub fn from_record(record: ActivationRecord) -> CallStack {
         let mut stack = CallStack::new();
 
         stack.push(record);
@@ -384,19 +418,19 @@ impl<'a> CallStack<'a> {
         stack
     }
 
-    pub fn push(&mut self, record: ActivationRecord<'a>) {
+    pub fn push(&mut self, record: ActivationRecord) {
         self.records.push(record);
     }
 
-    pub fn peek(&self) -> Option<&ActivationRecord<'a>> {
+    pub fn peek(&self) -> Option<&ActivationRecord> {
         self.records.last()
     }
 
-    pub fn peek_mut(&mut self) -> Option<&mut ActivationRecord<'a>> {
+    pub fn peek_mut(&mut self) -> Option<&mut ActivationRecord> {
         self.records.last_mut()
     }
 
-    pub fn pop(&mut self) -> Option<ActivationRecord<'a>> {
+    pub fn pop(&mut self) -> Option<ActivationRecord> {
         self.records.pop()
     }
 
