@@ -61,6 +61,31 @@ impl<'a> Parser<'a> {
                         None => Err(Parser::error("Expected right-hand-side of assignment operation")),
                     }
                 },
+                &TokenKind::LeftParen => {
+                    let mut arguments = Vec::new();
+
+                    loop {
+                        let expr = self.parse_expr()?;
+
+                        match expr {
+                            Some(node) => arguments.push(node) ,
+                            None => {
+                                let token = self.eat();
+
+                                if token.is_none() || token.unwrap().kind() != &TokenKind::RightParen {
+                                    return Err(Parser::error("Expected to find parenthesis end"));
+                                }
+
+                                break;
+                            }
+                        }
+                    }
+
+                    Ok(Node::Call {
+                        function: name,
+                        arguments,
+                    })
+                },
                 _ => Ok(var),
             }
         }
