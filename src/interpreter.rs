@@ -3,16 +3,16 @@ use crate::ast::{Node, Operator};
 use crate::error::Error;
 use crate::memory::{ActivationRecord, CallStack, Value};
 
-pub trait NodeVisitor<'a> {
-    fn visit(&mut self, node: &'a Node) -> Result<Value, Error>;
+pub trait NodeVisitor {
+    fn visit(&mut self, node: &Node) -> Result<Value, Error>;
 }
 
-pub struct Interpreter<'a> {
-    stack: CallStack<'a>,
+pub struct Interpreter {
+    stack: CallStack,
 }
 
-impl<'a> Interpreter<'a> {
-    pub fn new() -> Interpreter<'a> {
+impl Interpreter {
+    pub fn new() -> Interpreter {
         Interpreter {
             stack: CallStack::from_record(
                 ActivationRecord::new()
@@ -20,28 +20,28 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn from_record(record: ActivationRecord<'a>) -> Interpreter<'a> {
+    pub fn from_record(record: ActivationRecord) -> Interpreter {
         Interpreter {
             stack: CallStack::from_record(record),
         }
     }
 
-    pub fn from_stack(stack: CallStack<'a>) -> Interpreter<'a> {
+    pub fn from_stack(stack: CallStack) -> Interpreter {
         Interpreter {
             stack,
         }
     }
 
-    pub(crate) fn error(msg: &'a str) -> Error {
+    pub(crate) fn error(msg: &str) -> Error {
         Error::RuntimeError(String::from(msg))
     }
 }
 
-impl<'a> NodeVisitor<'a> for Interpreter<'a> {
-    fn visit(&mut self, node: &'a Node) -> Result<Value, Error> {
+impl NodeVisitor for Interpreter {
+    fn visit(&mut self, node: &Node) -> Result<Value, Error> {
         match node {
-            Node::Number(value) => Ok(Value::Number(*value)),
-            Node::Decimal(value) => Ok(Value::Decimal(*value)),
+            Node::Number(value) => Ok(Value::Number(value.clone())),
+            Node::Decimal(value) => Ok(Value::Decimal(value.clone())),
             Node::Array(vec) => {
                 let mut new_vec = Vec::new();
 
@@ -53,12 +53,15 @@ impl<'a> NodeVisitor<'a> for Interpreter<'a> {
             },
             Node::Variable(name) => {
                 let ar = self.stack.peek().unwrap();
-                let val = ar.get(*name);
+                let val = ar.get(&String::from(*name));
 
                 match val {
                     Some(res) => Ok(res.clone()),
                     None => Err(Interpreter::error("Undefined variable")),
                 }
+            },
+            Node::Call { function, arguments } => {
+                panic!("Unimplemented")
             },
             Node::Assign { lhs, rhs } => {
                 match lhs.deref() {
@@ -68,7 +71,7 @@ impl<'a> NodeVisitor<'a> for Interpreter<'a> {
 
                         let ar = self.stack.peek_mut().unwrap();
 
-                        ar.insert(* name, value);
+                        ar.insert( String::from(*name), value);
 
                         Ok(res)
                     },
@@ -93,6 +96,7 @@ impl<'a> NodeVisitor<'a> for Interpreter<'a> {
                     Operator::Sub => left - right,
                     Operator::Mul => left * right,
                     Operator::Div => left / right,
+                    Operator::Exp => left.pow(right),
                 };
 
                 Ok(res)
