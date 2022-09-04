@@ -10,7 +10,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{Editor};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::interpreter::{Interpreter, NodeVisitor};
+use crate::interpreter::{Interpreter};
 use crate::memory::{Value};
 
 fn repl() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,11 +22,19 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
 
         match readline {
             Ok(line) => {
+                if line == "exit" {
+                    break
+                }
+
                 let mut lexer = Lexer::new(line.as_str());
                 let mut parser = Parser::new(&mut lexer);
 
                 let nodes = parser.run()?;
                 let mut value: Value = Value::Number(0);
+
+                if nodes.len() == 0 {
+                    continue;
+                }
 
                 for node in nodes {
                     value = interpreter.visit(&node)?
@@ -46,6 +54,7 @@ fn main() {
     let res = repl();
 
     if res.is_err() {
-        panic!("{}", res.err().unwrap())
+        println!("{}", res.err().unwrap());
+        main();
     }
 }

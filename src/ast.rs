@@ -42,7 +42,7 @@ pub enum Node<'a> {
     Variable(&'a str),
     Call {
         function: &'a str,
-        arguments: Vec<Node<'a>>
+        arguments: Vec<Node<'a>>,
     },
     Assign {
         lhs: Box<Node<'a>>,

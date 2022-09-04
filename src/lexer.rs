@@ -1,7 +1,7 @@
 use std::fmt;
 use std::iter::{Iterator};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum TokenKind {
     Add,
     Sub,
@@ -22,6 +22,7 @@ pub enum TokenKind {
     Unknown
 }
 
+#[derive(Debug)]
 pub struct Token<'a> {
     kind: TokenKind,
     value: &'a str,

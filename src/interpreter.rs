@@ -3,19 +3,63 @@ use crate::ast::{Node, Operator};
 use crate::error::Error;
 use crate::memory::{ActivationRecord, CallStack, Value};
 
-pub trait NodeVisitor {
-    fn visit(&mut self, node: &Node) -> Result<Value, Error>;
-}
-
 pub struct Interpreter {
     stack: CallStack,
+}
+
+fn matrix_transpose(args: Vec<Value>) -> Result<Value, Error> {
+    let mat_value_opt = args.first();
+
+    if mat_value_opt.is_none() {
+        return Result::Err(Interpreter::error("Expected a matrix"));
+    }
+
+    match mat_value_opt.unwrap() {
+        Value::Array(mat) => {
+            let rows = mat.len();
+            let mut cols = 0;
+
+            if rows > 0 {
+                cols = mat.iter().next().unwrap().as_array().len();
+            }
+
+            let mut res: Vec<Value> = Vec::with_capacity(cols);
+
+            for i in 0..cols {
+                let row = Vec::with_capacity(rows);
+
+                res.push(Value::Array(row));
+            }
+
+            for i in 0..rows {
+                let row_vec = mat[i].as_array();
+
+                for j in 0..cols {
+                    let res_vec = res[j].as_array_mut();
+
+                    res_vec.insert(i, row_vec[j].clone());
+                }
+            }
+
+            Result::Ok(Value::Array(res))
+        },
+        _ => Result::Err(Interpreter::error("Expected a matrix")),
+    }
+}
+
+pub fn global_record() -> ActivationRecord {
+    let mut ar = ActivationRecord::new();
+
+    ar.insert(String::from("trn"), Value::NativeFunction(matrix_transpose));
+
+    return ar;
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
             stack: CallStack::from_record(
-                ActivationRecord::new()
+                global_record()
             ),
         }
     }
@@ -37,8 +81,8 @@ impl Interpreter {
     }
 }
 
-impl NodeVisitor for Interpreter {
-    fn visit(&mut self, node: &Node) -> Result<Value, Error> {
+impl Interpreter {
+    pub fn visit(&mut self, node: &Node) -> Result<Value, Error> {
         match node {
             Node::Number(value) => Ok(Value::Number(value.clone())),
             Node::Decimal(value) => Ok(Value::Decimal(value.clone())),
@@ -60,8 +104,26 @@ impl NodeVisitor for Interpreter {
                     None => Err(Interpreter::error("Undefined variable")),
                 }
             },
-            Node::Call { function, arguments } => {
-                panic!("Unimplemented")
+            Node::Call { function: fnName, arguments } => {
+                let mut args: Vec<Value> = Vec::new();
+
+                for node in arguments.iter() {
+                    args.push(self.visit(node)?);
+                }
+
+                let curr_ar = self.stack.peek().unwrap();
+                let fn_value = curr_ar.get(&String::from(*fnName));
+
+                if fn_value.is_none() {
+                    return Result::Err(Interpreter::error("Function not found"))
+                }
+
+                match fn_value.unwrap() {
+                    Value::NativeFunction(fn_ref) => {
+                        Result::Ok(fn_ref(args)?)
+                    },
+                    _ => Result::Err(Interpreter::error("Invalid function")),
+                }
             },
             Node::Assign { lhs, rhs } => {
                 match lhs.deref() {
