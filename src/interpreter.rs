@@ -47,19 +47,27 @@ fn matrix_transpose(args: Vec<Value>) -> Result<Value, Error> {
     }
 }
 
-pub fn global_record() -> ActivationRecord {
-    let mut ar = ActivationRecord::new();
-
+pub fn add_natives(mut ar: ActivationRecord) -> ActivationRecord {
     ar.insert(String::from("trn"), Value::NativeFunction(matrix_transpose));
 
     return ar;
+}
+
+pub trait WithNatives {
+    fn with_natives() -> Self;
+}
+
+impl WithNatives for ActivationRecord {
+    fn with_natives() -> Self {
+        add_natives(ActivationRecord::new())
+    }
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
             stack: CallStack::from_record(
-                global_record()
+                ActivationRecord::with_natives()
             ),
         }
     }
@@ -104,7 +112,7 @@ impl Interpreter {
                     None => Err(Interpreter::error("Undefined variable")),
                 }
             },
-            Node::Call { function: fnName, arguments } => {
+            Node::Call { function: fn_name, arguments } => {
                 let mut args: Vec<Value> = Vec::new();
 
                 for node in arguments.iter() {
@@ -112,7 +120,7 @@ impl Interpreter {
                 }
 
                 let curr_ar = self.stack.peek().unwrap();
-                let fn_value = curr_ar.get(&String::from(*fnName));
+                let fn_value = curr_ar.get(&String::from(*fn_name));
 
                 if fn_value.is_none() {
                     return Result::Err(Interpreter::error("Function not found"))
@@ -126,19 +134,14 @@ impl Interpreter {
                 }
             },
             Node::Assign { lhs, rhs } => {
-                match lhs.deref() {
-                    Node::Variable(name) => {
-                        let value = self.visit(rhs)?;
-                        let res = value.clone();
+                let value = self.visit(rhs)?;
+                let res = value.clone();
 
-                        let ar = self.stack.peek_mut().unwrap();
+                let ar = self.stack.peek_mut().unwrap();
 
-                        ar.insert( String::from(*name), value);
+                ar.insert( String::from(*lhs), value);
 
-                        Ok(res)
-                    },
-                    _ => Err(Interpreter::error("Invalid assignment left-hand-side"))
-                }
+                Ok(res)
             },
             Node::UnaryOp { op, rhs } => {
                 let right = self.visit(rhs.deref())?;
@@ -163,6 +166,8 @@ impl Interpreter {
 
                 Ok(res)
             },
+            Node::Declaration { name, kind } => todo!("Unimplemented"),
+            Node::Function { name, parameters, body } => todo!("Unimplemented"),
         }
     }
 }

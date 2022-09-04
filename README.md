@@ -17,14 +17,14 @@ __Note:__ All math operations that you can perform on a matrix can be performed 
 ```rust
 use crate::interpreter::lexer::Lexer;
 use crate::interpreter::parser::Parser;
-use crate::interpreter::interpreter::{Interpreter, NodeVisitor};
+use crate::interpreter::interpreter::{Interpreter, NodeVisitor, WithNatives};
 use crate::interpreter::memory::{ActivationRecord, Value};
 
 fn main() {
     let mut lexer = Lexer::new("a = b+2; a");
     let mut parser = Parser::new(&mut lexer);
 
-    let mut ar = ActivationRecord::new();
+    let mut ar = ActivationRecord::with_natives();
 
     ar.insert(String::from("b"), Value::Number(2));
 
@@ -41,7 +41,7 @@ fn main() {
 ```
 
 ### REPL
-To use the REPL, clone the project and then run:
+To use the REPL, clone the project and then run
 ```shell
 cargo run
 ```

@@ -5,7 +5,6 @@ mod parser;
 mod memory;
 mod interpreter;
 
-use std::io::{Write};
 use rustyline::error::ReadlineError;
 use rustyline::{Editor};
 use crate::lexer::Lexer;
@@ -18,7 +17,7 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
     let mut interpreter = Interpreter::new();
 
     loop {
-        let readline = rl.readline("> ");
+        let readline = rl.readline("jmath> ");
 
         match readline {
             Ok(line) => {

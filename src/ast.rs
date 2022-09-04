@@ -45,7 +45,7 @@ pub enum Node<'a> {
         arguments: Vec<Node<'a>>,
     },
     Assign {
-        lhs: Box<Node<'a>>,
+        lhs: &'a str,
         rhs: Box<Node<'a>>
     },
     UnaryOp {
@@ -56,6 +56,15 @@ pub enum Node<'a> {
         op: Operator,
         lhs: Box<Node<'a>>,
         rhs: Box<Node<'a>>
+    },
+    Declaration {
+        name: &'a str,
+        kind: &'a str,
+    },
+    Function {
+        name: &'a str,
+        parameters: Vec<Node<'a>>,
+        body: Block<'a>
     }
 }
 
@@ -70,6 +79,25 @@ impl<'a> fmt::Display for Node<'a> {
             Node::Assign { lhs, rhs } => write!(f, "AssignNode({}, {})", lhs, rhs),
             Node::UnaryOp { op, rhs} => write!(f, "UnaryOpNode({}, {})", op, rhs),
             Node::BinaryOp { op, lhs, rhs} => write!(f, "BinaryOpNode({}, {}, {})", lhs, op, rhs),
+            Node::Declaration { name, kind } => write!(f, "Declaration({}, {})", name, kind),
+            Node::Function { name, parameters, body } => {
+                write!(f, "Function({}", name)?;
+
+                let len = parameters.len();
+
+                for (i, item) in parameters.iter().enumerate() {
+                    write!(f, "{}", item)?;
+
+                    if i < len - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+
+                write!(f, ")")
+            },
         }
     }
 }
+
+#[derive(Debug)]
+pub struct Block<'a>(pub Vec<Node<'a>>);

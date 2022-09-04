@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ops;
 use std::fmt;
+use crate::error::Error;
 use crate::interpreter::Interpreter;
 
 #[derive(Debug, Clone)]
@@ -8,10 +9,11 @@ pub enum Value {
     Number(i64),
     Decimal(f64),
     Array(Vec<Value>),
+    NativeFunction(fn(Vec<Value>) -> Result<Value, Error>)
 }
 
 impl Value {
-    fn as_array(&self) -> &Vec<Value> {
+    pub(crate) fn as_array(&self) -> &Vec<Value> {
         if let Value::Array(v) = self {
             v
         } else {
@@ -19,7 +21,7 @@ impl Value {
         }
     }
 
-    fn as_array_mut(&mut self) -> &mut Vec<Value> {
+    pub(crate) fn as_array_mut(&mut self) -> &mut Vec<Value> {
         if let Value::Array(v) = self {
             v
         } else {
@@ -31,9 +33,24 @@ impl Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Number(value) => write!(f, "{}", value),
-            Value::Decimal(value) => write!(f, "{}", value),
-            Value::Array(value) => write!(f, "{:?}", value),
+            Value::Number(value) => write!(f, "\x1b[33m{}\x1b[0m", value),
+            Value::Decimal(value) => write!(f, "\x1b[33m{}\x1b[0m", value),
+            Value::Array(value) => {
+                write!(f, "[")?;
+
+                let len = value.len();
+
+                for (i, item) in value.iter().enumerate() {
+                    write!(f, "{}", item)?;
+
+                    if i < len - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+
+                write!(f, "]")
+            },
+            Value::NativeFunction(_) => write!(f, "NativeFunction"),
         }
     }
 }
@@ -50,6 +67,7 @@ impl ops::Add<i64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -66,6 +84,7 @@ impl ops::Add<f64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -90,6 +109,7 @@ impl ops::Add<Vec<Value>> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -102,6 +122,7 @@ impl ops::Add<Value> for Value {
             Value::Number(lhs) => rhs + lhs,
             Value::Decimal(lhs) => rhs + lhs,
             Value::Array(lhs) => rhs + lhs,
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -118,6 +139,7 @@ impl ops::Neg for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -134,6 +156,7 @@ impl ops::Sub<i64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -150,6 +173,7 @@ impl ops::Sub<f64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -174,6 +198,7 @@ impl ops::Sub<Vec<Value>> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -186,6 +211,7 @@ impl ops::Sub<Value> for Value {
             Value::Number(rhs) => self - rhs,
             Value::Decimal(rhs) => self - rhs,
             Value::Array(rhs) => self - rhs,
+            _ => panic!("{}", Interpreter::error("Invalid operation")),
         }
     }
 }
@@ -202,6 +228,7 @@ impl ops::Mul<i64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -218,6 +245,7 @@ impl ops::Mul<f64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -283,6 +311,7 @@ impl ops::Mul<Vec<Value>> for Value {
                     return Value::Array(res);
                 }
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -295,6 +324,7 @@ impl ops::Mul<Value> for Value {
             Value::Number(lhs) => rhs * lhs,
             Value::Decimal(lhs) => rhs * lhs,
             Value::Array(lhs) => rhs * lhs,
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -311,6 +341,7 @@ impl ops::Div<i64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -327,6 +358,7 @@ impl ops::Div<f64> for Value {
 
                 Value::Array(arr)
             },
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -339,6 +371,7 @@ impl ops::Div<Value> for Value {
             Value::Number(rhs) => self / rhs,
             Value::Decimal(rhs) => self / rhs,
             Value::Array(_) => panic!("Impossible operation"),
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }
@@ -352,7 +385,8 @@ impl Value {
                 let arr = lhs.into_iter().map(|value| value.powi(rhs)).collect();
 
                 Value::Array(arr)
-            }
+            },
+            _ => panic!("{}", Interpreter::error("Invalid operation")),
         }
     }
 
@@ -364,7 +398,8 @@ impl Value {
                 let arr = lhs.into_iter().map(|value| value.powf(rhs)).collect();
 
                 Value::Array(arr)
-            }
+            },
+            _ => panic!("{}", Interpreter::error("Invalid operation")),
         }
     }
 
@@ -372,7 +407,7 @@ impl Value {
         match right {
             Value::Number(rhs) => self.powf(rhs as f64),
             Value::Decimal(rhs) => self.powf(rhs),
-            Value::Array(_) => panic!("Impossible operation"),
+            _ => panic!("{}", Interpreter::error("Invalid operation"))
         }
     }
 }

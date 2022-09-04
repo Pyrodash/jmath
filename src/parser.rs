@@ -1,6 +1,6 @@
 use std::iter::{Iterator, Peekable};
 use crate::lexer::{Lexer, Token, TokenKind};
-use crate::ast::{Node, Operator};
+use crate::ast::{Block, Node, Operator};
 use crate::error::Error;
 
 pub struct Parser<'a> {
@@ -14,6 +14,22 @@ impl<'a> Parser<'a> {
 
     fn eat(&mut self) -> Option<Token<'a>> {
         self.source.next()
+    }
+
+    fn expect(&mut self, kind: TokenKind) -> Result<Token<'a>, Error> {
+        let err = Error::ParserError(format!("Expected {}", kind));
+        let token_opt = self.eat();
+
+        match token_opt {
+            Some(token) => {
+                if token.kind() != &kind {
+                    return Err(err);
+                }
+
+                Ok(token)
+            },
+            None => Err(err)
+        }
     }
 
     fn peek(&mut self) -> Option<&Token<'a>> {
@@ -34,59 +50,149 @@ impl<'a> Parser<'a> {
         res
     }
 
+    fn parse_assignment(&mut self, name: &'a str) -> Result<Node<'a>, Error> {
+        self.eat();
+
+        let right = self.parse_expr()?;
+
+        match right {
+            Some(rhs) => {
+                let res = Node::Assign {
+                    lhs: name,
+                    rhs: Box::new(rhs)
+                };
+
+                Ok(res)
+            },
+            None => Err(Parser::error("Expected right-hand-side of assignment operation")),
+        }
+    }
+
+    fn parse_call(&mut self, name: &'a str) -> Result<Node<'a>, Error> {
+        self.eat();
+
+        let mut arguments = Vec::new();
+
+        loop {
+            let expr = self.parse_expr()?;
+
+            match expr {
+                Some(node) => arguments.push(node) ,
+                None => {
+                    self.expect(TokenKind::RightParen)?;
+                    break;
+                }
+            }
+        }
+
+        Ok(Node::Call {
+            function: name,
+            arguments,
+        })
+    }
+
+    fn parse_block(&mut self, expect_braces: bool) -> Result<Block<'a>, Error> {
+        if expect_braces {
+            self.expect(TokenKind::BlockStart)?;
+        }
+
+        let mut nodes: Vec<Node<'a>> = Vec::new();
+
+        loop {
+            let expr = self.parse_expr()?;
+
+            if !expr.is_none() {
+                nodes.push(expr.unwrap());
+            }
+
+            let token = self.peek();
+
+            if token.is_none() || token.unwrap().kind() != &TokenKind::Semicolon {
+                break;
+            }
+        }
+
+        if expect_braces {
+            self.expect(TokenKind::BlockEnd)?;
+        }
+
+        Ok(Block(nodes))
+    }
+
+    fn parse_function_parameter(&mut self) -> Result<Option<Node<'a>>, Error> {
+        let name_token_opt = self.peek();
+
+        if name_token_opt.is_none() {
+            return Ok(None)
+        }
+
+        let name_token = name_token_opt.unwrap();
+
+        if name_token.kind() != &TokenKind::Identifier {
+            return Ok(None)
+        }
+
+        let name = name_token.value();
+
+        self.eat();
+        self.expect(TokenKind::Colon)?;
+
+        let kind = self.expect(TokenKind::Identifier)?.value();
+
+        Ok(Some(Node::Declaration {
+            name,
+            kind
+        }))
+    }
+
+    fn parse_function(&mut self) -> Result<Node<'a>, Error> {
+        let name = self.expect(TokenKind::Identifier)?.value();
+        let mut params: Vec<Node<'a>> = Vec::new();
+
+        self.expect(TokenKind::LeftParen)?;
+
+        loop {
+            let param = self.parse_function_parameter()?;
+
+            if param.is_none() {
+                break;
+            } else {
+                params.push(param.unwrap());
+            }
+        }
+
+        self.expect(TokenKind::RightParen)?;
+
+        let nodes = self.parse_block(true)?;
+
+        Ok(Node::Function {
+            name,
+            parameters: params,
+            body: nodes
+        })
+    }
+
     fn parse_identifier(&mut self) -> Result<Node<'a>, Error> {
         let name = self.eat().unwrap().value();
-        let var = Node::Variable(name);
 
-        let token = self.peek();
+        match name {
+            "fn" => self.parse_function(),
+            _ => {
+                let token = self.peek();
 
-        if token.is_none() {
-            Ok(var)
-        } else {
-            match token.unwrap().kind() {
-                &TokenKind::Assign => {
-                    self.eat();
-
-                    let right = self.parse_expr()?;
-
-                    match right {
-                        Some(rhs) => {
-                            let res = Node::Assign {
-                                lhs: Box::new(var),
-                                rhs: Box::new(rhs)
-                            };
-
-                            Ok(res)
+                if token.is_none() {
+                    Ok(Node::Variable(name))
+                } else {
+                    match token.unwrap().kind() {
+                        &TokenKind::Assign => {
+                            self.parse_assignment(name)
                         },
-                        None => Err(Parser::error("Expected right-hand-side of assignment operation")),
+                        &TokenKind::LeftParen => {
+                            self.parse_call(name)
+                        },
+                        _ => Ok(Node::Variable(name)),
                     }
-                },
-                &TokenKind::LeftParen => {
-                    let mut arguments = Vec::new();
-
-                    loop {
-                        let expr = self.parse_expr()?;
-
-                        match expr {
-                            Some(node) => arguments.push(node) ,
-                            None => {
-                                let token = self.eat();
-
-                                if token.is_none() || token.unwrap().kind() != &TokenKind::RightParen {
-                                    return Err(Parser::error("Expected to find parenthesis end"));
-                                }
-
-                                break;
-                            }
-                        }
-                    }
-
-                    Ok(Node::Call {
-                        function: name,
-                        arguments,
-                    })
-                },
-                _ => Ok(var),
+                }
             }
         }
     }
@@ -98,11 +204,7 @@ impl<'a> Parser<'a> {
 
         match val {
             Some(expr) => {
-                let token = self.eat();
-
-                if token.is_none() || token.unwrap().kind() != &TokenKind::RightParen {
-                    return Err(Parser::error("Expected to find parenthesis end"));
-                }
+                self.expect(TokenKind::RightParen)?;
 
                 Ok(expr)
             },
@@ -137,13 +239,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        token = self.peek();
-
-        if token.is_none() || token.unwrap().kind() != &TokenKind::ArrayEnd {
-            return Err(Parser::error("Expected array close"));
-        }
-
-        self.eat();
+        self.expect(TokenKind::ArrayEnd)?;
 
         Ok(Node::Array(nodes))
     }
